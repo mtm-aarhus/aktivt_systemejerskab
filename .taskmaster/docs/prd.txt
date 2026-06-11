@@ -1,0 +1,415 @@
+<context>
+# Overview
+
+Dette projekt implementerer en automatiseret synkroniseringsløsning mellem KITOS (Kommunernes IT-System) API V2 og en SharePoint-liste via Microsoft Graph API. Formålet er at give Aarhus Kommune et opdateret, søgbart overblik over ejerskab for et **udvalgt subset af IT-systemer** i SharePoint uden manuel datainput.
+
+Løsningen henter IT-systemdata fra KITOS — men kun for de systemer, der er opført på en **godkendelsesliste** (filterliste), som IT-forvaltningen selv vedligeholder i en separat SharePoint-liste. Data mappes til SharePoint-listekolonner og opdateres løbende via upsert-operationer baseret på UUID som nøgle.
+
+**To SharePoint-lister:**
+- **Filterliste** (`IT-Systemer Godkendt`): Vedligeholdes manuelt af IT-forvaltningen — indeholder KITOS UUID'er for de systemer, der skal overvåges
+- **Synkroniseringsliste** (`IT-Systemer KITOS`): Vedligeholdes automatisk af dette script — viser opdaterede stamdata fra KITOS for de godkendte systemer
+
+## Målgruppe
+
+- IT-forvaltningen i Aarhus Kommune, der ønsker ét samlet sted at se ejerskab og stamdata for kommunens IT-systemer
+- Systemadministratorer, der opsætter og drifter synkroniseringen
+- Ledere og fagpersoner, der tilgår data via SharePoint
+
+## Forretningsværdi
+
+- Eliminerer manuel vedligeholdelse af dubleret data
+- Sikrer at SharePoint altid afspejler den autoritative kilde (KITOS)
+- Muliggør filtrering, søgning og rapportering direkte i SharePoint
+- Understøtter fremtidig udvidelse til andre KITOS-moduler (kontrakter, databehandling)
+
+# Core Features
+
+## 1. Læsning af Filterliste fra SharePoint
+Hvad: Henter listen af godkendte KITOS UUID'er fra en SharePoint-filterliste (`IT-Systemer Godkendt`) ved hver kørsel.
+Hvorfor: IT-forvaltningen skal selv kunne styre hvilke systemer der overvåges uden at røre koden — SharePoint er det rette interface til dette.
+Hvordan: Graph API GET på filterlisten, udtræk af `KitosUUID`-kolonne for alle aktive rækker.
+
+## 2. KITOS API V2 Klient (filtreret opslag)
+Hvad: En Python-wrapper til KITOS API V2, der henter data for specifikke UUID'er.
+Hvorfor: Vi henter kun de systemer, der er godkendt — ikke hele kataloget.
+Hvordan: For hvert UUID i filterlisten: `GET /api/v2/it-system-usages?systemUuid={uuid}` eller tilsvarende filterparameter. Bearer token-autentifikation.
+
+## 3. SharePoint Upsert på Synkroniseringsliste
+Hvad: Opretter eller opdaterer rækker i synkroniseringslisten (`IT-Systemer KITOS`) baseret på data fra KITOS.
+Hvorfor: Synkroniseringslisten er det brugerfacing interface – den skal altid afspejle KITOS' aktuelle tilstand for de godkendte systemer.
+Hvordan: MSAL client_credentials, Graph API list items, lookup på `KitosUUID`-felt for opret vs. opdater.
+
+## 4. Feltmapping KITOS → SharePoint
+Hvad: En dedikeret mapper-komponent, der transformerer KITOS JSON-svar til SharePoint-feltstruktur.
+Hvorfor: KITOS-felter er indlejrede (fx `organizationContext.name`) og skal fladgøres til SharePoint-kolonner.
+Hvordan: Eksplicit mapping-dict i `mapper.py`, med håndtering af manglende/null-felter.
+
+## 5. Håndtering af systemer fjernet fra filterlisten
+Hvad: Detekterer hvis et system er fjernet fra filterlisten og deaktiverer/sletter den tilsvarende række i synkroniseringslisten.
+Hvorfor: Når IT-forvaltningen fjerner et system fra filterlisten, skal det forsvinde fra synkroniseringslisten.
+Hvordan: Sammenlign UUID'er i filterlisten med UUID'er i synkroniseringslisten — deaktiver dem der ikke længere er i filterlisten.
+
+## 6. Orkestrering og Fejlhåndtering
+Hvad: `main.py` som koordinerer alle komponenter med logging, retry-logik og rapport ved afslutning.
+Hvorfor: Driftsikkerhed kræver håndtering af transiente fejl (429 rate limit, 5xx) og synlig rapportering.
+Hvordan: Exponential backoff retry, logging til fil og konsol, tæller oprettede/opdaterede/deaktiverede poster.
+
+# User Experience
+
+## Brugerpersoner
+
+**Systemadministratoren** opsætter `.env` med credentials, konfigurerer planlagt kørsel (fx Windows Task Scheduler eller Azure Function), overvåger `logs/sync.log` ved fejl.
+
+**IT-forvaltningsmedarbejderen** tilgår SharePoint-listen i browseren, filtrerer på organisation, søger på systemnavn, eksporterer til Excel.
+
+## Primære flows
+
+1. **Normal kørsel:**
+   - Hent alle UUID'er fra filterlisten (`IT-Systemer Godkendt`) i SharePoint
+   - For hvert UUID: hent aktuelle data fra KITOS API
+   - Upsert i synkroniseringslisten (`IT-Systemer KITOS`)
+   - Hent alle UUID'er i synkroniseringslisten — deaktiver dem der ikke længere er i filterlisten
+   - Log rapport: N oprettet, N opdateret, N deaktiveret
+
+2. **IT-forvaltningen tilføjer et system:** Tilføjer KITOS UUID i filterlisten → næste kørsel opretter det automatisk i synkroniseringslisten.
+
+3. **IT-forvaltningen fjerner et system:** Sletter rækken i filterlisten → næste kørsel deaktiverer det i synkroniseringslisten.
+
+4. **Fejlscenarie:** HTTP 429 modtaget → vent og forsøg igen (max 3 forsøg) → log fejl → afbryd.
+
+## UX-overvejelser
+
+- Kommandolinje-output skal give klar status: "Synkronisering færdig: 12 oprettet, 3 opdateret, 1 slettet"
+- Log-fil formateres med timestamp og level (INFO/WARNING/ERROR) for nem fejlsøgning
+- SharePoint-kolonner navngives på dansk for slutbrugere
+</context>
+
+<PRD>
+# Technical Architecture
+
+## Systemkomponenter
+
+```
+src/
+├── kitos_client.py        # KITOS API V2 wrapper
+├── sharepoint_client.py   # Microsoft Graph API wrapper
+├── mapper.py              # Feltmapping KITOS → SharePoint
+└── main.py                # Entry point / orkestrering
+
+data/
+└── sync_state.json        # Gemmer lastSync timestamp
+
+logs/
+└── sync.log               # Kørselslogs
+```
+
+## Datamodeller
+
+### KITOS IT-System Usage læsemodel (fra `/api/v2/it-system-usages`)
+```json
+{
+  "uuid": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+  "lastModified": "2024-01-15T10:30:00.000Z",
+  "createdBy": { "name": "...", "uuid": "..." },
+  "deactivated": false,
+  "general": {
+    "localId": "IT-1234"
+  },
+  "systemContext": {
+    "name": "Systemets officielle navn",
+    "uuid": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+  },
+  "organizationContext": {
+    "cvr": "55133018",
+    "uuid": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+    "name": "Aarhus Kommune"
+  }
+}
+```
+
+Krydsreferencer (fx `exposedBySystem`) returneres som `{"name": "...", "uuid": "..."}`.
+Yderligere data hentes via: `GET /api/v2/it-systems/{uuid}` (undgås i MVP).
+
+### SharePoint Liste 1: Filterliste (`IT-Systemer Godkendt`)
+Vedligeholdes manuelt af IT-forvaltningen.
+```
+KitosUUID    (Tekst, nøgle)   ← KITOS UUID for det ønskede system
+Title        (Tekst)          ← Fritekst-navn (til reference for forvaltningen)
+```
+
+### SharePoint Liste 2: Synkroniseringsliste (`IT-Systemer KITOS`)
+Vedligeholdes automatisk af scriptet.
+```
+KitosUUID        (Tekst, nøgle)     ← uuid
+Title            (Tekst)            ← systemContext.name
+LokalID          (Tekst)            ← general.localId
+Organisation     (Tekst)            ← organizationContext.name
+SidstOpdateret   (Dato)             ← lastModified
+Deaktiveret      (Ja/Nej)           ← deactivated (eller fjernet fra filterlisten)
+```
+
+### Sync State
+```json
+{
+  "lastSync": "2024-01-15T12:00:00.000Z"
+}
+```
+
+## APIs og Integrationer
+
+### KITOS API V2
+- Base URL: `https://kitos.dk/api/v2`
+- Autentifikation: Bearer token (konfigureres i `.env`). Version 1 er udfaset og ikke tilgængelig med JWT.
+- Paginering: `?page=0&pageSize=<n>` — standardværdi fremgår af Swagger. Resultater sorteres stigende efter `LastModified`.
+- Delta-feed ændringer: `?changedSinceGtEq=<UTC ISO8601-timestamp>` på listeendpoints
+- Delta-feed slettede: `/api/v2/delta-feed/deleted-entities?entityType=ItSystemUsage&deletedSinceUTC=<UTC ISO8601-timestamp>`
+  - Bemærk: slettede entiteter bruger `deletedSinceUTC` (ikke `changedSinceGtEq`) og kræver `entityType`-parameter
+- Stamdata IT-systemer: `/api/v2/it-systems`
+- IT-systemanvendelse i organisation: `/api/v2/it-system-usages`
+- Alle ressourcer identificeres med UUID (ikke databasens interne `Id` fra v1)
+
+**Særskilte læse- og skrivemodeller:**
+KITOS API skelner mellem læse- og skrivemodel. Koden læser kun, så læsemodellen anvendes:
+- Krydsreferencer returneres som objekter med `uuid` og `name`: `{"systemContext": {"uuid": "...", "name": "..."}, "organizationContext": {"cvr": "...", "uuid": "...", "name": "..."}}`
+- Beregnede statusfelter og logfelter (`createdBy`, `lastModified`) findes kun på læsemodellen
+- Krydsreferencer til andre ressourcer kan opslås via: `GET /api/v2/it-systems/{uuid}`
+
+**Understøttede HTTP-verber (til fremtidig udvidelse):**
+POST, GET, PUT, PATCH (RFC 7396 JSON Merge Patch), DELETE
+
+### SharePoint via office365-rest-python-client
+- Pakke: `Office365-REST-Python-Client`
+- Autentifikation: `UserCredential` med servicekonto (ingen MFA, ingen Azure App)
+- Lister refereres ved **navn** — ikke GUID/list-id
+- Eksempel på forbindelse:
+  ```python
+  from office365.sharepoint.client_context import ClientContext
+  from office365.runtime.auth.user_credential import UserCredential
+  ctx = ClientContext(SHAREPOINT_URL).with_credentials(
+      UserCredential(SP_USERNAME, SP_PASSWORD)
+  )
+  ```
+- Hent listeelementer: `ctx.web.lists.get_by_title("IT-Systemer Godkendt").items.get().execute_query()`
+- Opret element: `lst.add_item({"KitosUUID": "...", "Title": "..."})`
+- Opdater element: `item.set_property("Title", "...").update()`
+
+## Infrastrukturkrav
+
+- Python 3.10+
+- Pakker: `requests`, `msal`, `python-dotenv`
+- `.env` med følgende variabler:
+  ```
+  KITOS_BASE_URL=https://kitos.dk/api/v2
+  KITOS_TOKEN=<bearer-token>
+  SHAREPOINT_URL=https://aarhuskommune.sharepoint.com/sites/din-site
+  SP_USERNAME=servicekonto@aarhus.dk
+  SP_PASSWORD=<adgangskode>
+  SHAREPOINT_FILTER_LIST=IT-Systemer Godkendt
+  SHAREPOINT_SYNC_LIST=IT-Systemer KITOS
+  ```
+- Skriveadgang til `data/` og `logs/` mapper
+- Netværksadgang til `kitos.dk` og `graph.microsoft.com`
+
+# Development Roadmap
+
+## Fase 1 — Projektopsætning og Autentifikation
+
+**Scope:**
+- Opret projektstruktur (`src/`, `data/`, `logs/`, `requirements/`)
+- Opret `requirements/base.txt` med `requests`, `msal`, `python-dotenv`
+- Opret `requirements/dev.txt` med `pytest`, `ruff`, `black`
+- Implementer `.env`-indlæsning med validering af påkrævede variabler
+- Implementer KITOS token-autentifikation og basis GET-kald med fejlhåndtering
+- Implementer MSAL client_credentials token-hentning til Graph API
+- Verificer autentifikation mod begge systemer med smoke-test script
+
+**Leverancer:**
+- Fungerende autentifikation mod KITOS og Microsoft Graph
+- Projektstruktur klar til videre udvikling
+
+## Fase 2 — Filterliste + KITOS Data Udtræk
+
+**Scope:**
+- Tilføj metode til `sharepoint_client.py`: `get_filter_list_uuids()` — henter alle KITOS UUID'er fra filterlisten
+- Implementer `kitos_client.py` med klasse `KitosClient`
+- Metode: `get_it_system_usage_by_uuid(uuid)` — henter ét IT-system baseret på UUID
+- Afklar med KITOS/API-docs hvilken filterparameter der bruges (fx `?systemUuid=` eller direkte `GET /it-system-usages/{uuid}`)
+- Metode: `get_it_system_usages_for_uuids(uuids)` — itererer over filterlisten og kalder KITOS for hvert UUID
+- Manuel test: hent data for ét hardkodet UUID og print resultatet
+
+**Leverancer:**
+- Fungerende opslag i KITOS for specifikke UUID'er
+- Filterliste læses fra SharePoint
+
+## Fase 3 — SharePoint Integration
+
+**Scope:**
+- Implementer `sharepoint_client.py` med klasse `SharePointClient`
+- Metode: `find_item_by_kitos_uuid(uuid)` — returnerer SharePoint item ID eller None
+- Metode: `create_item(fields)` — opretter nyt listeelement
+- Metode: `update_item(item_id, fields)` — opdaterer eksisterende element
+- Metode: `deactivate_item(item_id)` — sætter Deaktiveret=true
+- Implementer `mapper.py` med `map_kitos_to_sharepoint(kitos_item)` funktion
+- Manuel test: opret ét testitem i SharePoint og verificer
+
+**Leverancer:**
+- Fungerende upsert-operationer mod SharePoint
+- Komplet feltmapping
+
+## Fase 4 — Orkestrering og Fejlhåndtering
+
+**Scope:**
+- Implementer `main.py` med fuld synkroniseringslogik:
+  1. Hent alle UUID'er fra filterlisten (`get_filter_list_uuids()`)
+  2. Hent data fra KITOS for hvert UUID i filterlisten
+  3. For hvert KITOS-svar: find i synkroniseringslisten → opret eller opdater
+  4. Hent alle UUID'er i synkroniseringslisten → deaktiver dem der ikke er i filterlisten
+  5. Print/log rapport: N oprettet, N opdateret, N deaktiveret
+- Implementer retry med exponential backoff for HTTP 429 og 5xx
+- Implementer logging til fil (`logs/sync.log`) og konsol
+- Test fuld kørselssekvens end-to-end
+
+**Leverancer:**
+- Komplet, køreklar synkroniseringsløsning
+- Robust fejlhåndtering og logging
+
+# Logical Dependency Chain
+
+1. **Projektstruktur + .env-indlæsning** — fundament for alt andet
+2. **KITOS autentifikation** — kræves før nogen data kan hentes
+3. **Graph API autentifikation** — kræves før begge SharePoint-lister kan tilgås
+4. **Læsning af filterliste fra SharePoint** — definerer hvilke systemer der synkroniseres
+5. **KITOS opslag pr. UUID** — henter data for de godkendte systemer
+6. **Feltmapping (mapper.py)** — transformerer KITOS-data til SharePoint-format
+7. **SharePoint upsert på synkroniseringslisten** — den faktiske skriveoperation
+8. **Deaktivering af systemer fjernet fra filterlisten** — bygger oven på upsert
+9. **Orkestrering i main.py** — samler alle dele til én kørsel
+10. **Retry-logik og logging** — driftsikkerhed, tilføjes sidst
+
+**Hurtigste vej til noget synligt:** Trin 1-7 giver en fungerende sync for de godkendte systemer. Det er en brugbar MVP.
+
+# Risks and Mitigations
+
+## Tekniske risici
+
+**KITOS autentifikationsmetode uafklaret**
+- Risiko: Projektet antager Bearer token, men KITOS bruger måske OAuth2, API-nøgle eller basic auth
+- Mitigering: Afklar med KITOS/kommunen inden implementering af `kitos_client.py`. Se KITOS API-dokumentation om autentifikation.
+
+**Microsoft Graph API tilladelser**
+- Risiko: Azure App Registration mangler `Sites.ReadWrite.All` eller er ikke godkendt af IT-afdeling
+- Mitigering: Bestil App Registration med korrekte tilladelser tidligt i projektet
+
+**SharePoint-listen eksisterer ikke endnu**
+- Risiko: Koden antager at listen og kolonnerne allerede er oprettet i SharePoint
+- Mitigering: Dokumenter præcist hvilke kolonner der skal oprettes (se feltmapping). Overvej at tilføje en `setup`-kommando der opretter listen programmatisk.
+
+**KITOS paginering og store datasæt**
+- Risiko: Hvis der er mange tusinde IT-systemer, kan fuld sync tage lang tid og løbe ind i rate limits
+- Mitigering: Delta-feed begrænser mængden ved efterfølgende kørsler. Implementer retry med backoff fra start.
+
+**Krydsreferencer i KITOS-data**
+- Risiko: `exposedBySystem.uuid` og andre krydsreferencer kræver separate GET-kald til `/api/v2/it-systems/{uuid}` for at hente stamdata, hvilket øger antal API-kald markant
+- Mitigering: MVP bruger kun felter direkte på `it-system-usages` læsemodellen (`systemContext.name`, `organizationContext.name`). Krydsreference-opslag udskydes til senere fase.
+
+**Forkert parameter til slettede entiteter**
+- Risiko: Delta-feed for slettede entiteter bruger `deletedSinceUTC` og kræver `entityType`-parameter — ikke `changedSinceGtEq` som ændrede entiteter
+- Mitigering: Brug præcist: `?entityType=ItSystemUsage&deletedSinceUTC=<timestamp>` (se eksempelkald i Appendix)
+
+## MVP-definition
+
+MVP er en løsning der:
+- Læser filterlisten (`IT-Systemer Godkendt`) fra SharePoint
+- Henter data fra KITOS for hvert UUID i filterlisten
+- Opretter og opdaterer elementer i synkroniseringslisten (`IT-Systemer KITOS`) baseret på `KitosUUID`
+- Logger resultat til konsol
+- Kan køres manuelt fra kommandolinjen
+
+Alt andet (deaktivering ved fjernelse fra filterliste, retry, logging til fil, planlagt kørsel) er Phase 2+.
+
+# Appendix
+
+## Åbne spørgsmål der skal afklares
+
+1. **KITOS autentifikation:** Bruges Bearer token, OAuth2 client credentials, API-nøgle eller brugernavn/adgangskode?
+2. **KITOS UUID-filterparameter:** Kan KITOS filtrere direkte på UUID via `?systemUuid={uuid}` på `/api/v2/it-system-usages`, eller skal der bruges direkte GET `/{uuid}`-endpoint? Afklar i Swagger.
+3. **Filterlisten eksisterer:** Skal filterlisten (`IT-Systemer Godkendt`) oprettes fra bunden, eller eksisterer der allerede en liste med relevante UUID'er i SharePoint?
+4. **Synkroniseringslisten eksisterer:** Eksisterer `IT-Systemer KITOS`-listen allerede med korrekte kolonner, eller skal scriptet oprette den?
+5. **Kørselsmodus:** Engangs-udtræk, planlagt job (Windows Task Scheduler), eller Azure Function?
+6. **Deaktiverede systemer i KITOS:** Skal `deactivated=true` IT-systemer vises i synkroniseringslisten, eller filtreres fra ved udtræk fra KITOS?
+7. **Hvad sker der når et system ikke findes i KITOS?** Hvis et UUID i filterlisten ikke returnerer et resultat fra KITOS — skal det logges som fejl, eller stiltiende ignoreres?
+
+## Feltmapping Reference
+
+| KITOS felt (JSON-sti) | SharePoint kolonne | SharePoint type |
+|---|---|---|
+| `uuid` | `KitosUUID` | Enkeltlinje tekst (nøgle) |
+| `systemContext.name` | `Title` | Enkeltlinje tekst |
+| `general.localId` | `LokalID` | Enkeltlinje tekst |
+| `organizationContext.name` | `Organisation` | Enkeltlinje tekst |
+| `lastModified` | `SidstOpdateret` | Dato og klokkeslæt |
+| `deactivated` | `Deaktiveret` | Ja/Nej |
+
+## KITOS API Eksempelkald
+
+```
+# Fuld pagineret hentning af IT-systemanvendelse (side 0)
+GET https://kitos.dk/api/v2/it-system-usages?page=0&pageSize=250
+Authorization: Bearer <token>
+
+# Delta-feed — kun ændringer siden sidst (sorteret stigende efter LastModified)
+GET https://kitos.dk/api/v2/it-system-usages?changedSinceGtEq=2024-01-01T00:00:00.000Z&page=0&pageSize=250
+Authorization: Bearer <token>
+
+# Slettede entiteter (BEMÆRK: entityType + deletedSinceUTC — ikke changedSinceGtEq)
+GET https://kitos.dk/api/v2/delta-feed/deleted-entities?entityType=ItSystemUsage&deletedSinceUTC=2024-01-01T00:00:00.021Z&page=0&pageSize=250
+Authorization: Bearer <token>
+
+# Stamdata for ét IT-system (krydsreference-opslag)
+GET https://kitos.dk/api/v2/it-systems/ccb5a066-3e14-489a-a9d4-91193e12d53d
+Authorization: Bearer <token>
+```
+
+## Microsoft Graph API Eksempelkald
+
+```
+# Hent eksisterende item via filter
+GET https://graph.microsoft.com/v1.0/sites/{site-id}/lists/{list-id}/items?$filter=fields/KitosUUID eq '{uuid}'&$expand=fields
+Authorization: Bearer <msal-token>
+
+# Opret nyt item
+POST https://graph.microsoft.com/v1.0/sites/{site-id}/lists/{list-id}/items
+Authorization: Bearer <msal-token>
+Content-Type: application/json
+{"fields": {"KitosUUID": "...", "Title": "...", "Organisation": "..."}}
+
+# Opdater eksisterende item
+PATCH https://graph.microsoft.com/v1.0/sites/{site-id}/lists/{list-id}/items/{item-id}/fields
+Authorization: Bearer <msal-token>
+Content-Type: application/json
+{"Title": "...", "SidstOpdateret": "2024-01-15T10:30:00Z"}
+```
+
+## Projektstruktur (forventet slutresultat)
+
+```
+Aktivtsystem_ejerskab/
+├── .env                          # Miljøvariabler (ikke i git)
+├── .taskmaster/
+│   └── docs/
+│       └── prd.txt               # Dette dokument
+├── requirements/
+│   ├── base.txt                  # requests, msal, python-dotenv
+│   ├── dev.txt                   # pytest, ruff, black
+│   └── prod.txt
+├── src/
+│   ├── kitos_client.py           # KITOS API V2 wrapper
+│   ├── sharepoint_client.py      # Microsoft Graph API wrapper
+│   ├── mapper.py                 # Feltmapping KITOS → SharePoint
+│   └── main.py                   # Entry point / orkestrering
+├── data/
+│   └── sync_state.json           # Gemmer lastSync timestamp
+└── logs/
+    └── sync.log                  # Kørselslogs
+```
+</PRD>
