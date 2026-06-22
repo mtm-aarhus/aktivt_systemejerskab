@@ -104,7 +104,7 @@ class SharePointClient:
                 ctx.web.lists.get_by_title(self.mtm_list_name).add_item({
                     "Title": title,
                     _KITOS_UUID_FIELD: uuid,
-                    self.mtm_active_field: 1,
+                    self.mtm_active_field: True,
                 })
                 ctx.execute_query()
                 logger.debug(f"Tilføjet til MTM-listen: {title} ({uuid})")
