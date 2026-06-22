@@ -107,8 +107,10 @@ def map_kitos_to_sharepoint(
         "Kontrakt":            _safe_get(kitos_item, "general", "mainContract", "name"),
 
         # Roller og ansvar
-        "Systemejer":          _extract_role_name(roles, "faglig systemejer", "systemejer", "system owner"),
-        "ITAnsvarlig":         _extract_role_name(roles, "teknisk systemejer", "it-ansvarlig", "it ansvarlig", "itansvarlig"),
+        "Systemejer":          None,  # Leder af ansvarlig organisationsenhed — sættes eksternt
+        "faglig_systemejer":   _extract_role_name(roles, "faglig systemejer"),
+        "teknisk_systemejer":  _extract_role_name(roles, "teknisk systemejer"),
+        "ITAnsvarlig":         _extract_role_name(roles, "it-ansvarlig", "it ansvarlig", "itansvarlig"),
         "Forvalter":           _safe_get(kitos_item, "organizationUsage", "responsibleOrganizationUnit", "name"),
 
         # GDPR
