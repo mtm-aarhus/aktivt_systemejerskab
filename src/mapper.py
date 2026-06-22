@@ -107,14 +107,14 @@ def map_kitos_to_sharepoint(
         "Kontrakt":            _safe_get(kitos_item, "general", "mainContract", "name"),
 
         # Roller og ansvar
-        "Systemejer":          _extract_role_name(roles, "systemejer", "system owner"),
-        "ITAnsvarlig":         _extract_role_name(roles, "it-ansvarlig", "it ansvarlig", "itansvarlig"),
+        "Systemejer":          _extract_role_name(roles, "faglig systemejer", "systemejer", "system owner"),
+        "ITAnsvarlig":         _extract_role_name(roles, "teknisk systemejer", "it-ansvarlig", "it ansvarlig", "itansvarlig"),
         "Forvalter":           _safe_get(kitos_item, "organizationUsage", "responsibleOrganizationUnit", "name"),
 
         # GDPR
         "GDPRAnmeldelseURL":   _safe_get(kitos_item, "gdpr", "directoryDocumentation", "url"),
         "PersondataKategorier": ", ".join(sensitivity) if sensitivity else None,
-        "HostetHos":           _safe_get(kitos_item, "gdpr", "hostedAt"),
+        "HostetHos":           _safe_get(kitos_item, "general", "hostedAt"),
 
         # Databehandleraftale (fra DPR-opslag)
         "Databehandleraftale": _dpr_concluded(dprs),
