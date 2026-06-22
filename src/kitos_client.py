@@ -115,6 +115,30 @@ class KitosClient:
                 logger.warning(f"UUID {uuid} ikke fundet i KITOS - springer over")
         return results
 
+    # --- Alle systemer (initial import) ---
+
+    def get_all_system_usages(self, page_size: int = 250) -> List[Dict[str, Any]]:
+        """Henter alle IT-systemanvendelser med paginering.
+
+        Bruges til initial import: henter alle systemer den indloggede bruger
+        har adgang til (dvs. MTM-organisationens systemer).
+        """
+        results = []
+        page = 0
+        while True:
+            data = self._get(
+                "/it-system-usages",
+                {"page": page, "pageSize": page_size},
+            )
+            if not data:
+                break
+            results.extend(data)
+            logger.info(f"Hentede side {page}: {len(data)} systemer (total: {len(results)})")
+            if len(data) < page_size:
+                break
+            page += 1
+        return results
+
     # --- DPR-opslag ---
 
     def get_dprs_for_system_usage(

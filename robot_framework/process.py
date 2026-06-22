@@ -46,7 +46,20 @@ def process(orchestrator_connection: OrchestratorConnection, queue_element: Queu
     orchestrator_connection.log_info(f"Fandt {len(active_uuids)} aktive systemer i MTM-listen.")
 
     if not active_uuids:
-        orchestrator_connection.log_info("Ingen aktive systemer — sync afsluttet uden ændringer.")
+        orchestrator_connection.log_info("MTM-listen er tom — udfører initial import fra KITOS...")
+        all_systems = kitos.get_all_system_usages()
+        orchestrator_connection.log_info(f"Fandt {len(all_systems)} systemer i KITOS — importerer til MTM-listen...")
+        for system in all_systems:
+            uuid = system.get("uuid")
+            title = system.get("systemContext", {}).get("name", uuid)
+            if uuid:
+                sp.add_mtm_item(uuid, title)
+        orchestrator_connection.log_info("Initial import til MTM-listen færdig.")
+        active_uuids = sp.get_active_mtm_uuids()
+        orchestrator_connection.log_info(f"Aktive systemer efter import: {len(active_uuids)}")
+
+    if not active_uuids:
+        orchestrator_connection.log_info("Ingen aktive systemer efter import — sync afsluttet.")
         return
 
     created = updated = skipped = errors = 0

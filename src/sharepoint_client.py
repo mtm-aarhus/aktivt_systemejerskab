@@ -69,6 +69,34 @@ class SharePointClient:
             logger.error(f"Fejl ved læsning af MTM-liste: {e}")
             raise
 
+    def add_mtm_item(self, uuid: str, title: str) -> None:
+        """Tilføjer ét system til MTM-listen med AktivSync = Ja.
+
+        Bruges ved initial import. Springer over hvis UUID allerede findes.
+        """
+        try:
+            ctx = self._get_context()
+            existing = (
+                ctx.web.lists.get_by_title(self.mtm_list_name)
+                .items.filter(f"{_KITOS_UUID_FIELD} eq '{uuid}'")
+                .get()
+                .execute_query()
+            )
+            if existing:
+                logger.debug(f"UUID {uuid} findes allerede i MTM-listen — springer over")
+                return
+
+            ctx.web.lists.get_by_title(self.mtm_list_name).items.add({
+                "Title": title,
+                _KITOS_UUID_FIELD: uuid,
+                self.mtm_active_field: True,
+            }).execute_query()
+            logger.debug(f"Tilføjet til MTM-listen: {title} ({uuid})")
+
+        except Exception as e:
+            logger.error(f"Fejl ved oprettelse af MTM-item {uuid}: {e}")
+            raise
+
     def get_all_mtm_uuids(self) -> List[str]:
         """Henter KITOS UUID'er for ALLE MTM-systemer uanset AktivSync.
 
