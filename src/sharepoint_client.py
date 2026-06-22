@@ -89,11 +89,12 @@ class SharePointClient:
         """
         try:
             ctx = self._get_context()
-            ctx.web.lists.get_by_title(self.mtm_list_name).items.add({
+            ctx.web.lists.get_by_title(self.mtm_list_name).add_item({
                 "Title": title,
                 _KITOS_UUID_FIELD: uuid,
                 self.mtm_active_field: True,
-            }).execute_query()
+            })
+            ctx.execute_query()
             logger.debug(f"Tilføjet til MTM-listen: {title} ({uuid})")
         except Exception as e:
             logger.error(f"Fejl ved oprettelse af MTM-item {uuid}: {e}")
@@ -174,7 +175,8 @@ class SharePointClient:
                 logger.debug(f"Opdateret item for UUID {kitos_uuid}")
                 return "updated"
 
-            ctx.web.lists.get_by_title(self.sync_list_name).items.add(clean_data).execute_query()
+            ctx.web.lists.get_by_title(self.sync_list_name).add_item(clean_data)
+            ctx.execute_query()
             logger.debug(f"Oprettet item for UUID {kitos_uuid}")
             return "created"
         except Exception as e:
