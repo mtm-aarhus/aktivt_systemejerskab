@@ -11,7 +11,7 @@ os.chdir(script_directory)
 
 subprocess.run("python -m venv .venv", check=True)
 subprocess.run([r'.venv\Scripts\python', '-m', 'pip', 'install', '--upgrade', 'pip'], check=True)
-subprocess.run([r'.venv\Scripts\pip', 'install', '-r', 'requirements.txt'], check=True)
+subprocess.run([r'.venv\Scripts\pip', 'install', '--only-binary=:all:', '-r', 'requirements.txt'], check=True)
 subprocess.run([r'.venv\Scripts\pip', 'install', '--no-deps', '--no-build-isolation', '.'], check=True)
 
 command_args = [r".venv\Scripts\python", "-m", "robot_framework"] + sys.argv[1:]
