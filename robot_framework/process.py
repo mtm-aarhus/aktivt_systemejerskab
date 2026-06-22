@@ -113,14 +113,14 @@ def process(orchestrator_connection: OrchestratorConnection, queue_element: Queu
         try:
             orchestrator_connection.log_info(f"[{i}/{len(active_uuids)}] Behandler UUID: {system_uuid}")
 
-            system = kitos.get_it_system_usage_by_uuid(system_uuid)
+            system = kitos_by_uuid.get(system_uuid)
             if not system:
-                orchestrator_connection.log_info(f"  UUID {system_uuid} ikke fundet i KITOS — springer over.")
+                orchestrator_connection.log_info(f"  UUID {system_uuid} ikke fundet i kitos_by_uuid — springer over.")
                 skipped += 1
                 continue
 
             title = system.get("systemContext", {}).get("name", system_uuid)
-            dprs    = kitos.get_dprs_for_system_usage(system["uuid"])
+            dprs    = kitos.get_dprs_for_system_usage(system_uuid)
             sp_data = map_kitos_to_sharepoint(system, dprs)
             action  = sp.upsert_sync_item(sp_data)
 
