@@ -1,8 +1,10 @@
 import logging
+import time
 from typing import List, Optional, Dict, Any
 
 from office365.runtime.auth.client_credential import ClientCredential
 from office365.sharepoint.client_context import ClientContext
+from requests.exceptions import ConnectionError as RequestsConnectionError
 
 from . import config
 
@@ -83,22 +85,29 @@ class SharePointClient:
     # --- MTM-liste: skriv ---
 
     def add_mtm_item(self, uuid: str, title: str) -> None:
-        """Tilføjer ét system til MTM-listen med AktivSync = Ja.
-
-        Springer over hvis UUID allerede findes.
-        """
-        try:
-            ctx = self._get_context()
-            ctx.web.lists.get_by_title(self.mtm_list_name).add_item({
-                "Title": title,
-                _KITOS_UUID_FIELD: uuid,
-                self.mtm_active_field: True,
-            })
-            ctx.execute_query()
-            logger.debug(f"Tilføjet til MTM-listen: {title} ({uuid})")
-        except Exception as e:
-            logger.error(f"Fejl ved oprettelse af MTM-item {uuid}: {e}")
-            raise
+        """Tilføjer ét system til MTM-listen med AktivSync = Ja."""
+        for attempt in range(3):
+            try:
+                ctx = self._get_context()
+                ctx.web.lists.get_by_title(self.mtm_list_name).add_item({
+                    "Title": title,
+                    _KITOS_UUID_FIELD: uuid,
+                    self.mtm_active_field: True,
+                })
+                ctx.execute_query()
+                logger.debug(f"Tilføjet til MTM-listen: {title} ({uuid})")
+                return
+            except RequestsConnectionError as e:
+                if attempt < 2:
+                    wait = 2 ** attempt
+                    logger.warning(f"Forbindelsesfejl ved '{title}' — forsøger igen om {wait}s")
+                    time.sleep(wait)
+                else:
+                    logger.error(f"Fejl ved oprettelse af MTM-item {uuid}: {e}")
+                    raise
+            except Exception as e:
+                logger.error(f"Fejl ved oprettelse af MTM-item {uuid}: {e}")
+                raise
 
     def deactivate_mtm_item(self, item_id: int, uuid: str) -> None:
         """Sætter AktivSync = Nej for et MTM-item (system forsvundet fra KITOS)."""
