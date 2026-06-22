@@ -230,9 +230,11 @@ def _clean_for_sharepoint(data: Dict[str, Any]) -> Dict[str, Any]:
     for key, value in data.items():
         if value is None:
             continue
-        if key in url_fields and isinstance(value, str):
-            result[key] = {"__metadata": {"type": "SP.FieldUrlValue"},
-                           "Url": value, "Description": value}
+        if key in url_fields:
+            if isinstance(value, str) and value.startswith(("http://", "https://")):
+                result[key] = {"__metadata": {"type": "SP.FieldUrlValue"},
+                               "Url": value, "Description": value}
+            # Ugyldig eller tom URL — udelad feltet
         else:
             result[key] = value
     return result
