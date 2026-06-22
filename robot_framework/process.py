@@ -10,6 +10,22 @@ from src.mapper import map_kitos_to_sharepoint
 from src.sharepoint_client import SharePointClient
 
 
+def _is_mtm_system(system: dict) -> bool:
+    """Returnerer True hvis systemet tilhører MTM (Teknik og Miljø)."""
+    org = system.get("organizationUsage") or {}
+    ansvarlig = (org.get("responsibleOrganizationUnit") or {}).get("name", "").lower()
+    brugende = [
+        u.get("name", "").lower()
+        for u in (org.get("usingOrganizationUnits") or [])
+    ]
+    for enhed in [ansvarlig] + brugende:
+        if any(kw in enhed for kw in config.MTM_KEYWORDS):
+            return True
+        if any(unit == enhed or unit in enhed for unit in config.MTM_UNITS_WHITELIST):
+            return True
+    return False
+
+
 # pylint: disable-next=unused-argument
 def process(orchestrator_connection: OrchestratorConnection, queue_element: QueueElement | None = None) -> None:
     """Synkroniser KITOS-systemer til SharePoint — tilføj nye, deaktiver fjernede, opdater eksisterende."""
@@ -41,22 +57,14 @@ def process(orchestrator_connection: OrchestratorConnection, queue_element: Queu
 
     sp = SharePointClient(ctx=sp_ctx)
 
-    # --- Trin 1: Find MTM-organisation og hent systemer fra KITOS ---
-    orchestrator_connection.log_info(f"Slår MTM-organisation op i KITOS: '{config.MTM_ORG_NAME}'...")
-    mtm_org_uuid = kitos.get_organization_uuid(config.MTM_ORG_NAME)
-    if not mtm_org_uuid:
-        raise RuntimeError(
-            f"Kunne ikke finde organisation '{config.MTM_ORG_NAME}' i KITOS. "
-            f"Tjek OO-loggen for liste af tilgængelige organisationer og ret MTM_ORG_NAME i config.py."
-        )
-    orchestrator_connection.log_info(f"MTM organisation UUID: {mtm_org_uuid}")
-
-    orchestrator_connection.log_info("Henter alle MTM-systemer fra KITOS...")
-    all_kitos_systems = kitos.get_all_system_usages(org_uuid=mtm_org_uuid)
-    kitos_by_uuid = {
-        s["uuid"]: s for s in all_kitos_systems if s.get("uuid")
-    }
-    orchestrator_connection.log_info(f"Fandt {len(kitos_by_uuid)} MTM-systemer i KITOS.")
+    # --- Trin 1: Hent alle systemer fra KITOS og filtrer på MTM ---
+    orchestrator_connection.log_info("Henter alle systemer fra KITOS...")
+    all_systems = kitos.get_all_system_usages()
+    mtm_systems = [s for s in all_systems if _is_mtm_system(s)]
+    kitos_by_uuid = {s["uuid"]: s for s in mtm_systems if s.get("uuid")}
+    orchestrator_connection.log_info(
+        f"Hentede {len(all_systems)} systemer i alt — filtreret til {len(kitos_by_uuid)} MTM-systemer."
+    )
 
     # --- Trin 2: Hent alle items fra MTM-listen ---
     orchestrator_connection.log_info(f"Henter alle items fra MTM-listen '{config.MTM_LIST}'...")

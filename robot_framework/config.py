@@ -25,8 +25,25 @@ MTM_LIST = "a_s_MTM Systemer"
 MTM_ACTIVE_FIELD = "AktivSync"
 SHAREPOINT_SYNC_LIST = "a_s_IT-Systemer KITOS"
 
-# KITOS organisation
-MTM_ORG_NAME = "Teknik og Miljø"
+# KITOS MTM-filter: nøgleord og kendte underenheder
+MTM_KEYWORDS = ["teknik", "milj", "mtm"]
+MTM_UNITS_WHITELIST = {
+    "parkering",
+    "kirkegårde",
+    "jord og grundvand",
+    "ejendomsdrift",
+    "ejendomsportefølje",
+    "bygherreområdet",
+    "trafik og vejdrift",
+    "vejanlæg",
+    "vejdrift",
+    "byrum",
+    "cirkulære ressourcer",
+    "ent naturafdelingen",
+    "opkøb og grundsalg",
+    "proces og jura",
+    "distrikt nord",
+}
 
 
 # Queue specific configs
