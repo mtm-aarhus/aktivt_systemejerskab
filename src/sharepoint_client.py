@@ -85,14 +85,26 @@ class SharePointClient:
     # --- MTM-liste: skriv ---
 
     def add_mtm_item(self, uuid: str, title: str) -> None:
-        """Tilføjer ét system til MTM-listen med AktivSync = Ja."""
+        """Tilføjer ét system til MTM-listen med AktivSync = Ja.
+
+        Springer over hvis UUID allerede findes (duplicate-safe).
+        """
         for attempt in range(3):
             try:
                 ctx = self._get_context()
+                existing = (
+                    ctx.web.lists.get_by_title(self.mtm_list_name)
+                    .items.filter(f"{_KITOS_UUID_FIELD} eq '{uuid}'")
+                    .get()
+                    .execute_query()
+                )
+                if existing:
+                    logger.debug(f"UUID {uuid} findes allerede i MTM-listen — springer over")
+                    return
                 ctx.web.lists.get_by_title(self.mtm_list_name).add_item({
                     "Title": title,
                     _KITOS_UUID_FIELD: uuid,
-                    self.mtm_active_field: True,
+                    self.mtm_active_field: 1,
                 })
                 ctx.execute_query()
                 logger.debug(f"Tilføjet til MTM-listen: {title} ({uuid})")
