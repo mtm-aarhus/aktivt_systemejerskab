@@ -10,8 +10,10 @@ _AUTH_URL = "https://kitos.dk/api/authorize/GetToken"
 
 
 class KitosClient:
-    def __init__(self):
+    def __init__(self, email: Optional[str] = None, password: Optional[str] = None):
         self.base_url = config.KITOS_BASE_URL.rstrip("/")
+        self._email = email or config.KITOS_EMAIL
+        self._password = password or config.KITOS_PASSWORD
         self._token: Optional[str] = None
         self._authenticate()
 
@@ -22,7 +24,7 @@ class KitosClient:
         try:
             resp = requests.post(
                 _AUTH_URL,
-                json={"email": config.KITOS_EMAIL, "password": config.KITOS_PASSWORD},
+                json={"email": self._email, "password": self._password},
                 timeout=15,
             )
             resp.raise_for_status()

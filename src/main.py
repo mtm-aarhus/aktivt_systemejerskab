@@ -6,6 +6,7 @@ Entry point for OpenOrchestrator (python -m src.main)
 import logging
 import sys
 
+from . import config
 from .kitos_client import KitosClient
 from .mapper import map_kitos_to_sharepoint
 from .sharepoint_client import SharePointClient
@@ -20,6 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 def main() -> None:
+    config.validate_env()
     logger.info("=== KITOS SharePoint Sync starter ===")
 
     sp = SharePointClient()

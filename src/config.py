@@ -33,6 +33,3 @@ def validate_env():
         print(f"FEJL: Manglende miljøvariabler: {', '.join(missing)}")
         print("Sæt dem i .env-filen eller med: setx VARIABELNAVN 'værdi'")
         sys.exit(1)
-
-
-validate_env()

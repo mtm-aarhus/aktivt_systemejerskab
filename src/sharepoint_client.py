@@ -12,23 +12,23 @@ _KITOS_UUID_FIELD = "KitosUUID"
 
 
 class SharePointClient:
-    def __init__(self):
-        self.site_url = config.SHAREPOINT_URL
-        self._credentials = ClientCredential(config.AZURE_CLIENT_ID, config.AZURE_CLIENT_SECRET)
+    def __init__(self, ctx: Optional[ClientContext] = None):
         self.mtm_list_name = config.MTM_LIST
         self.mtm_active_field = config.MTM_ACTIVE_FIELD
         self.sync_list_name = config.SHAREPOINT_SYNC_LIST
-        self._ctx: Optional[ClientContext] = None
+        # Brug den medfølgende context direkte (f.eks. fra OpenOrchestrator cert-auth),
+        # eller byg en ny fra config (client secret) ved første kald.
+        self._ctx: Optional[ClientContext] = ctx
+        self._build_from_config = ctx is None
 
     # --- Forbindelse ---
 
     def _get_context(self) -> ClientContext:
-        """Returnerer cached SharePoint context — opretter ved første kald."""
-        if self._ctx is None:
-            self._ctx = ClientContext(self.site_url).with_credentials(
-                self._credentials
-            )
-            logger.info("SharePoint context oprettet")
+        """Returnerer cached SharePoint context — opretter ved første kald hvis ingen er givet."""
+        if self._ctx is None and self._build_from_config:
+            credentials = ClientCredential(config.AZURE_CLIENT_ID, config.AZURE_CLIENT_SECRET)
+            self._ctx = ClientContext(config.SHAREPOINT_URL).with_credentials(credentials)
+            logger.info("SharePoint context oprettet (client secret)")
         return self._ctx
 
     # --- MTM-liste: hent aktive UUID'er ---

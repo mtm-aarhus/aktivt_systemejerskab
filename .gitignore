@@ -12,6 +12,7 @@ env/
 
 # Environment variables
 .env
+.env.example
 
 # Runtime data
 data/*.json
@@ -30,3 +31,35 @@ Thumbs.db
 # Node (task-master)
 node_modules/
 npm-debug.log*
+
+# AI / editor tools
+.claude/
+.taskmaster/
+.gemini/
+.mcp.json
+CLAUDE.md
+
+# Dokumentation og design
+*.md
+*.pdf
+*.xlsx
+*.png
+*.csv
+*.ts
+data/
+logs/
+
+# Utility-scripts og tests
+export_kitos_csv.py
+fetch_mtm_systems.py
+test_connection.py
+test_kitos_explore.py
+tests/
+.coverage
+
+# Windows/PS scripts
+run_sync.bat
+setup_scheduler.ps1
+
+# Ekstra requirements-mapper
+requirements/
