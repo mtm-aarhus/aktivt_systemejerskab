@@ -9,6 +9,7 @@ import sys
 script_directory = os.path.dirname(os.path.realpath(__file__))
 os.chdir(script_directory)
 
+subprocess.run(["git", "pull", "origin", "master"], check=False)
 subprocess.run("pip install --upgrade uv", check=True)
 command_args = ["uv", "run", "--reinstall-package", "robot_framework", "python", "-m", "robot_framework"] + sys.argv[1:]
 subprocess.run(command_args, check=True)
