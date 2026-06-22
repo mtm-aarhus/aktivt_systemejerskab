@@ -10,7 +10,7 @@ from src.mapper import map_kitos_to_sharepoint
 from src.sharepoint_client import SharePointClient
 
 
-def process(orchestrator_connection: OrchestratorConnection, queue_element: QueueElement | None = None) -> None:
+def process(orchestrator_connection: OrchestratorConnection, queue_element: QueueElement | None = None) -> None:  # pylint: disable=unused-argument
     """Synkroniser aktive KITOS-systemer fra MTM-listen til SharePoint."""
     orchestrator_connection.log_trace("KITOS SharePoint sync starter.")
 
@@ -57,7 +57,7 @@ def process(orchestrator_connection: OrchestratorConnection, queue_element: Queu
 
             orchestrator_connection.log_trace(f"[{action.upper()}] {sp_data.get('Title', uuid)}")
 
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             errors += 1
             orchestrator_connection.log_error(f"Fejl ved synkronisering af {uuid}: {e}")
 

@@ -1,6 +1,11 @@
+[pylint.master]
+ignore = sync_to_sharepoint.py
+
 [pylint.messages_control]
-disable = 
+disable =
   C0301, # Line too long
   I1101, E1101, # C-modules members
   R0913, # Too many arguments
-  R0914 # Too many local variables
+  R0914, # Too many local variables
+  W1203, # Use lazy % formatting in logging (f-strings er mere læsbare)
+  R0801  # Duplicate code
