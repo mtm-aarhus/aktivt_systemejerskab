@@ -130,8 +130,11 @@ class SharePointClient:
             item.update().execute_query()
             logger.debug(f"Deaktiveret MTM-item ID={item_id} ({uuid})")
         except Exception as e:
-            logger.error(f"Fejl ved deaktivering af MTM-item {uuid}: {e}")
-            raise
+            if "-2147024809" in str(e) or "Elementet findes ikke" in str(e):
+                logger.warning(f"MTM-item ID={item_id} ({uuid}) allerede slettet — springer over")
+            else:
+                logger.error(f"Fejl ved deaktivering af MTM-item {uuid}: {e}")
+                raise
 
     # --- Synkliste: opslag ---
 
@@ -217,8 +220,11 @@ class SharePointClient:
                 .execute_query()
             logger.debug(f"Slettet sync-item for UUID {kitos_uuid}")
         except Exception as e:
-            logger.error(f"Fejl ved sletning af sync-item {kitos_uuid}: {e}")
-            raise
+            if "-2147024809" in str(e) or "Elementet findes ikke" in str(e):
+                logger.warning(f"Sync-item {kitos_uuid} allerede slettet — springer over")
+            else:
+                logger.error(f"Fejl ved sletning af sync-item {kitos_uuid}: {e}")
+                raise
 
 
 # --- Hjælpefunktioner ---
