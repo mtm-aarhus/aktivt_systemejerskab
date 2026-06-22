@@ -24,7 +24,7 @@ def process(orchestrator_connection: OrchestratorConnection, queue_element: Queu
     cert_cred = orchestrator_connection.get_credential(config.SHAREPOINT_CERT_CREDENTIAL)
     orchestrator_connection.log_info(f"SharePointCert credential hentet (thumbprint: {cert_cred.username[:8]}...)")
 
-    site_url = orchestrator_connection.get_constant(config.SHAREPOINT_URL_CONSTANT)
+    site_url = orchestrator_connection.get_constant(config.SHAREPOINT_URL_CONSTANT).value
     orchestrator_connection.log_info(f"SharePoint URL: {site_url}")
 
     orchestrator_connection.log_info("Opretter SharePoint forbindelse med certifikat...")
