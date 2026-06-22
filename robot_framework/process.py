@@ -74,12 +74,17 @@ def process(orchestrator_connection: OrchestratorConnection, queue_element: Queu
 
     # --- Trin 3: Tilføj nye systemer (i KITOS men ikke i MTM-listen) ---
     new_uuids = set(kitos_by_uuid) - set(mtm_by_uuid)
+    add_errors = 0
     if new_uuids:
         orchestrator_connection.log_info(f"Tilføjer {len(new_uuids)} nye systemer til MTM-listen...")
         for uuid in new_uuids:
             title = kitos_by_uuid[uuid].get("systemContext", {}).get("name", uuid)
-            sp.add_mtm_item(uuid, title)
-            orchestrator_connection.log_info(f"  [NY] {title}")
+            try:
+                sp.add_mtm_item(uuid, title)
+                orchestrator_connection.log_info(f"  [NY] {title}")
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                add_errors += 1
+                orchestrator_connection.log_error(f"  Fejl ved tilføjelse af {title} ({uuid}): {e}")
 
     # --- Trin 4: Deaktiver fjernede systemer (i MTM-listen men ikke i KITOS) ---
     removed_uuids = set(mtm_by_uuid) - set(kitos_by_uuid)
@@ -131,9 +136,10 @@ def process(orchestrator_connection: OrchestratorConnection, queue_element: Queu
             orchestrator_connection.log_error(f"  Fejl ved synkronisering af {system_uuid}: {e}")
 
     orchestrator_connection.log_info(
-        f"=== Sync færdig === Nye: {len(new_uuids)} | Fjernede: {len(removed_uuids)} | "
+        f"=== Sync færdig === Nye: {len(new_uuids)} | Tilføjelsesfejl: {add_errors} | "
+        f"Fjernede: {len(removed_uuids)} | "
         f"Oprettet: {created} | Opdateret: {updated} | Sprunget over: {skipped} | Fejl: {errors}"
     )
 
-    if errors:
-        raise RuntimeError(f"{errors} systemer fejlede under synkronisering.")
+    if add_errors or errors:
+        raise RuntimeError(f"{add_errors} tilføjelsesfejl og {errors} synkfejl under kørsel.")
