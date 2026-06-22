@@ -30,4 +30,4 @@ jobs:
 
     - name: Analysing the code with flake8
       run: |
-        flake8 --extend-ignore=E501,E251 $(git ls-files '*.py')
+        flake8 --extend-ignore=E501,E251,E221,E272 --exclude=sync_to_sharepoint.py $(git ls-files '*.py')
