@@ -14,6 +14,17 @@ SCREENSHOT_SENDER = "robot@friend.dk"
 # Constant/Credential names
 ERROR_EMAIL = "Error Email"
 
+# KITOS sync
+KITOS_CREDENTIAL = "KitosMTM"
+SHAREPOINT_API_CREDENTIAL = "SharePointAPI"
+SHAREPOINT_CERT_CREDENTIAL = "SharePointCert"
+SHAREPOINT_URL_CONSTANT = "aktivt_systemejerskab_sharepoint"
+
+# SharePoint listenavn
+MTM_LIST = "a_s_MTM Systemer"
+MTM_ACTIVE_FIELD = "AktivSync"
+SHAREPOINT_SYNC_LIST = "a_s_IT-Systemer KITOS"
+
 
 # Queue specific configs
 # ----------------------
