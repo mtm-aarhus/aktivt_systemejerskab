@@ -1,36 +1,67 @@
-# Python
+# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
-*.pyo
-*.pyd
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
 .Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
 
-# Virtual environment
-venv/
-.venv/
-env/
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
 
-# Environment variables
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# Environments
 .env
 .env.example
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
 
-# Runtime data
-data/*.json
-logs/*.log
-
-# Editor
-.idea/
+# Editor / IDE
 .vscode/
-*.suo
-*.sw?
+.idea/
 
 # OS
 .DS_Store
 Thumbs.db
-
-# Node (task-master)
-node_modules/
-npm-debug.log*
 
 # AI / editor tools
 .claude/
@@ -55,11 +86,11 @@ fetch_mtm_systems.py
 test_connection.py
 test_kitos_explore.py
 tests/
-.coverage
 
 # Windows/PS scripts
 run_sync.bat
 setup_scheduler.ps1
 
-# Ekstra requirements-mapper
-requirements/
+# Node (task-master)
+node_modules/
+npm-debug.log*
