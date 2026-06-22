@@ -126,12 +126,19 @@ class KitosClient:
             "/organizations",
             {"nameContains": name_contains, "page": 0, "pageSize": 25},
         )
-        for org in (data or []):
+        orgs = data or []
+        if not orgs:
+            # Log alle organisationer for diagnostik (tom søgning)
+            all_orgs = self._get("/organizations", {"page": 0, "pageSize": 50}) or []
+            names = [o.get("name") for o in all_orgs]
+            logger.warning(f"Søgning på '{name_contains}' gav 0 resultater. Tilgængelige organisationer: {names}")
+            return None
+        for org in orgs:
             org_name = org.get("name", "")
+            logger.info(f"Fandt organisation: '{org_name}' (UUID: {org.get('uuid')})")
             if name_contains.lower() in org_name.lower():
-                logger.info(f"Fandt organisation '{org_name}' med UUID {org.get('uuid')}")
                 return org.get("uuid")
-        logger.warning(f"Ingen organisation fundet med navn indeholdende '{name_contains}'")
+        logger.warning(f"Ingen organisation matchede '{name_contains}'")
         return None
 
     # --- Alle systemer (filtreret på organisation) ---

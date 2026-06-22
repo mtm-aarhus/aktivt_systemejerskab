@@ -45,7 +45,10 @@ def process(orchestrator_connection: OrchestratorConnection, queue_element: Queu
     orchestrator_connection.log_info(f"Slår MTM-organisation op i KITOS: '{config.MTM_ORG_NAME}'...")
     mtm_org_uuid = kitos.get_organization_uuid(config.MTM_ORG_NAME)
     if not mtm_org_uuid:
-        raise RuntimeError(f"Kunne ikke finde organisation '{config.MTM_ORG_NAME}' i KITOS.")
+        raise RuntimeError(
+            f"Kunne ikke finde organisation '{config.MTM_ORG_NAME}' i KITOS. "
+            f"Tjek OO-loggen for liste af tilgængelige organisationer og ret MTM_ORG_NAME i config.py."
+        )
     orchestrator_connection.log_info(f"MTM organisation UUID: {mtm_org_uuid}")
 
     orchestrator_connection.log_info("Henter alle MTM-systemer fra KITOS...")
