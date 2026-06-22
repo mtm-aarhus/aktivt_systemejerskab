@@ -38,7 +38,8 @@ class SharePointClient:
             ctx = self._get_context()
             items = (
                 ctx.web.lists.get_by_title(self.mtm_list_name)
-                .items.get()
+                .items.top(5000)
+                .get()
                 .execute_query()
             )
             result = []
@@ -50,7 +51,7 @@ class SharePointClient:
                         "id": item.properties.get("ID"),
                         "active": bool(item.properties.get(self.mtm_active_field)),
                     })
-            logger.info(f"Hentet {len(result)} items fra '{self.mtm_list_name}'")
+            logger.info(f"Hentet {len(result)} items med UUID ud af {len(items)} total i '{self.mtm_list_name}'")
             return result
         except Exception as e:
             logger.error(f"Fejl ved læsning af MTM-liste: {e}")
@@ -63,6 +64,7 @@ class SharePointClient:
             items = (
                 ctx.web.lists.get_by_title(self.mtm_list_name)
                 .items.filter(f"{self.mtm_active_field} eq 1")
+                .top(5000)
                 .get()
                 .execute_query()
             )
