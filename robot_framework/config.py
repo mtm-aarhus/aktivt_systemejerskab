@@ -25,6 +25,9 @@ MTM_LIST = "a_s_MTM Systemer"
 MTM_ACTIVE_FIELD = "AktivSync"
 SHAREPOINT_SYNC_LIST = "a_s_IT-Systemer KITOS"
 
+# KITOS organisation
+MTM_ORG_NAME = "Teknik og Miljø"
+
 
 # Queue specific configs
 # ----------------------

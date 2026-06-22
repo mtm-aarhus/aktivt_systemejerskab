@@ -115,21 +115,40 @@ class KitosClient:
                 logger.warning(f"UUID {uuid} ikke fundet i KITOS - springer over")
         return results
 
-    # --- Alle systemer (initial import) ---
+    # --- Organisations-opslag ---
 
-    def get_all_system_usages(self, page_size: int = 250) -> List[Dict[str, Any]]:
+    def get_organization_uuid(self, name_contains: str) -> Optional[str]:
+        """Finder en organisations UUID i KITOS ud fra navn (case-insensitiv delsøgning).
+
+        Returnerer None hvis ingen organisation matcher.
+        """
+        data = self._get(
+            "/organizations",
+            {"nameContains": name_contains, "page": 0, "pageSize": 25},
+        )
+        for org in (data or []):
+            org_name = org.get("name", "")
+            if name_contains.lower() in org_name.lower():
+                logger.info(f"Fandt organisation '{org_name}' med UUID {org.get('uuid')}")
+                return org.get("uuid")
+        logger.warning(f"Ingen organisation fundet med navn indeholdende '{name_contains}'")
+        return None
+
+    # --- Alle systemer (filtreret på organisation) ---
+
+    def get_all_system_usages(self, org_uuid: Optional[str] = None, page_size: int = 250) -> List[Dict[str, Any]]:
         """Henter alle IT-systemanvendelser med paginering.
 
-        Bruges til initial import: henter alle systemer den indloggede bruger
-        har adgang til (dvs. MTM-organisationens systemer).
+        Hvis org_uuid er angivet filtreres på den pågældende organisation.
         """
         results = []
         page = 0
+        params: Dict[str, Any] = {"page": page, "pageSize": page_size}
+        if org_uuid:
+            params["organizationUuid"] = org_uuid
         while True:
-            data = self._get(
-                "/it-system-usages",
-                {"page": page, "pageSize": page_size},
-            )
+            params["page"] = page
+            data = self._get("/it-system-usages", params)
             if not data:
                 break
             results.extend(data)

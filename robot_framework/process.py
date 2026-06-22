@@ -41,13 +41,19 @@ def process(orchestrator_connection: OrchestratorConnection, queue_element: Queu
 
     sp = SharePointClient(ctx=sp_ctx)
 
-    # --- Trin 1: Hent alle systemer fra KITOS ---
-    orchestrator_connection.log_info("Henter alle systemer fra KITOS...")
-    all_kitos_systems = kitos.get_all_system_usages()
+    # --- Trin 1: Find MTM-organisation og hent systemer fra KITOS ---
+    orchestrator_connection.log_info(f"Slår MTM-organisation op i KITOS: '{config.MTM_ORG_NAME}'...")
+    mtm_org_uuid = kitos.get_organization_uuid(config.MTM_ORG_NAME)
+    if not mtm_org_uuid:
+        raise RuntimeError(f"Kunne ikke finde organisation '{config.MTM_ORG_NAME}' i KITOS.")
+    orchestrator_connection.log_info(f"MTM organisation UUID: {mtm_org_uuid}")
+
+    orchestrator_connection.log_info("Henter alle MTM-systemer fra KITOS...")
+    all_kitos_systems = kitos.get_all_system_usages(org_uuid=mtm_org_uuid)
     kitos_by_uuid = {
         s["uuid"]: s for s in all_kitos_systems if s.get("uuid")
     }
-    orchestrator_connection.log_info(f"Fandt {len(kitos_by_uuid)} systemer i KITOS.")
+    orchestrator_connection.log_info(f"Fandt {len(kitos_by_uuid)} MTM-systemer i KITOS.")
 
     # --- Trin 2: Hent alle items fra MTM-listen ---
     orchestrator_connection.log_info(f"Henter alle items fra MTM-listen '{config.MTM_LIST}'...")
