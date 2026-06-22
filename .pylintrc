@@ -1,4 +1,4 @@
-[pylint.master]
+[pylint.main]
 ignore = sync_to_sharepoint.py
 
 [pylint.messages_control]
