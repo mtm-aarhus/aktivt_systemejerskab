@@ -15,13 +15,7 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: Microsoft :: Windows",
 ]
-dependencies = [
-    "OpenOrchestrator == 1.*",
-    "Pillow == 9.5.0",
-    "Office365-REST-Python-Client == 2.5.13",
-    "requests == 2.32.3",
-    "python-dotenv == 1.0.1",
-]
+dependencies = []
 
 [project.optional-dependencies]
 dev = [
