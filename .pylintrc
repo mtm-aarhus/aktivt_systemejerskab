@@ -13,4 +13,5 @@ disable =
   C0115, # Missing class docstring
   C0116, # Missing function docstring
   W0718, # Catching too broad exception
-  R0915  # Too many statements
+  R0915, # Too many statements
+  R0912  # Too many branches
