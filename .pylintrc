@@ -12,4 +12,5 @@ disable =
   C0114, # Missing module docstring
   C0115, # Missing class docstring
   C0116, # Missing function docstring
-  W0718  # Catching too broad exception
+  W0718, # Catching too broad exception
+  R0915  # Too many statements
