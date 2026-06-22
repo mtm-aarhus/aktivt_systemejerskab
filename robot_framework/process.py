@@ -12,7 +12,7 @@ from src.sharepoint_client import SharePointClient
 
 # pylint: disable-next=unused-argument
 def process(orchestrator_connection: OrchestratorConnection, queue_element: QueueElement | None = None) -> None:
-    """Synkroniser aktive KITOS-systemer fra MTM-listen til SharePoint."""
+    """Synkroniser KITOS-systemer til SharePoint — tilføj nye, deaktiver fjernede, opdater eksisterende."""
     orchestrator_connection.log_info("Henter credentials fra OpenOrchestrator...")
 
     kitos_cred = orchestrator_connection.get_credential(config.KITOS_CREDENTIAL)
@@ -41,27 +41,50 @@ def process(orchestrator_connection: OrchestratorConnection, queue_element: Queu
 
     sp = SharePointClient(ctx=sp_ctx)
 
-    orchestrator_connection.log_info(f"Henter aktive systemer fra MTM-listen: '{config.MTM_LIST}'...")
+    # --- Trin 1: Hent alle systemer fra KITOS ---
+    orchestrator_connection.log_info("Henter alle systemer fra KITOS...")
+    all_kitos_systems = kitos.get_all_system_usages()
+    kitos_by_uuid = {
+        s["uuid"]: s for s in all_kitos_systems if s.get("uuid")
+    }
+    orchestrator_connection.log_info(f"Fandt {len(kitos_by_uuid)} systemer i KITOS.")
+
+    # --- Trin 2: Hent alle items fra MTM-listen ---
+    orchestrator_connection.log_info(f"Henter alle items fra MTM-listen '{config.MTM_LIST}'...")
+    mtm_items = sp.get_all_mtm_items()
+    mtm_by_uuid = {item["uuid"]: item for item in mtm_items}
+    orchestrator_connection.log_info(f"Fandt {len(mtm_by_uuid)} items i MTM-listen.")
+
+    # --- Trin 3: Tilføj nye systemer (i KITOS men ikke i MTM-listen) ---
+    new_uuids = set(kitos_by_uuid) - set(mtm_by_uuid)
+    if new_uuids:
+        orchestrator_connection.log_info(f"Tilføjer {len(new_uuids)} nye systemer til MTM-listen...")
+        for uuid in new_uuids:
+            title = kitos_by_uuid[uuid].get("systemContext", {}).get("name", uuid)
+            sp.add_mtm_item(uuid, title)
+            orchestrator_connection.log_info(f"  [NY] {title}")
+
+    # --- Trin 4: Deaktiver fjernede systemer (i MTM-listen men ikke i KITOS) ---
+    removed_uuids = set(mtm_by_uuid) - set(kitos_by_uuid)
+    if removed_uuids:
+        orchestrator_connection.log_info(f"Deaktiverer {len(removed_uuids)} systemer forsvundet fra KITOS...")
+        for uuid in removed_uuids:
+            item = mtm_by_uuid[uuid]
+            if item["active"]:
+                sp.deactivate_mtm_item(item["id"], uuid)
+                orchestrator_connection.log_info(f"  [DEAKTIVERET] {uuid}")
+            sp.delete_sync_item(uuid)
+            orchestrator_connection.log_info(f"  [SLETTET FRA SYNKLISTE] {uuid}")
+
+    # --- Trin 5: Hent opdateret liste af aktive UUID'er ---
     active_uuids = sp.get_active_mtm_uuids()
-    orchestrator_connection.log_info(f"Fandt {len(active_uuids)} aktive systemer i MTM-listen.")
+    orchestrator_connection.log_info(f"Aktive systemer til sync: {len(active_uuids)}")
 
     if not active_uuids:
-        orchestrator_connection.log_info("MTM-listen er tom — udfører initial import fra KITOS...")
-        all_systems = kitos.get_all_system_usages()
-        orchestrator_connection.log_info(f"Fandt {len(all_systems)} systemer i KITOS — importerer til MTM-listen...")
-        for system in all_systems:
-            uuid = system.get("uuid")
-            title = system.get("systemContext", {}).get("name", uuid)
-            if uuid:
-                sp.add_mtm_item(uuid, title)
-        orchestrator_connection.log_info("Initial import til MTM-listen færdig.")
-        active_uuids = sp.get_active_mtm_uuids()
-        orchestrator_connection.log_info(f"Aktive systemer efter import: {len(active_uuids)}")
-
-    if not active_uuids:
-        orchestrator_connection.log_info("Ingen aktive systemer efter import — sync afsluttet.")
+        orchestrator_connection.log_info("Ingen aktive systemer — sync afsluttet.")
         return
 
+    # --- Trin 6: Synkroniser aktive systemer til IT-Systemer KITOS ---
     created = updated = skipped = errors = 0
 
     for i, system_uuid in enumerate(active_uuids, 1):
@@ -91,7 +114,8 @@ def process(orchestrator_connection: OrchestratorConnection, queue_element: Queu
             orchestrator_connection.log_error(f"  Fejl ved synkronisering af {system_uuid}: {e}")
 
     orchestrator_connection.log_info(
-        f"=== Sync færdig === Oprettet: {created} | Opdateret: {updated} | Sprunget over: {skipped} | Fejl: {errors}"
+        f"=== Sync færdig === Nye: {len(new_uuids)} | Fjernede: {len(removed_uuids)} | "
+        f"Oprettet: {created} | Opdateret: {updated} | Sprunget over: {skipped} | Fejl: {errors}"
     )
 
     if errors:
