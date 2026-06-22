@@ -1,6 +1,7 @@
-import requests
 import logging
 from typing import Optional, List, Dict, Any
+
+import requests
 
 from . import config
 

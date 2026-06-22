@@ -172,14 +172,14 @@ class SharePointClient:
                 item.update().execute_query()
                 logger.debug(f"Opdateret item for UUID {kitos_uuid}")
                 return "updated"
-            else:
-                (
-                    ctx.web.lists.get_by_title(self.sync_list_name)
-                    .items.add(clean_data)
-                    .execute_query()
-                )
-                logger.debug(f"Oprettet item for UUID {kitos_uuid}")
-                return "created"
+
+            (
+                ctx.web.lists.get_by_title(self.sync_list_name)
+                .items.add(clean_data)
+                .execute_query()
+            )
+            logger.debug(f"Oprettet item for UUID {kitos_uuid}")
+            return "created"
 
         except Exception as e:
             logger.error(f"Fejl ved upsert af {kitos_uuid}: {e}")
