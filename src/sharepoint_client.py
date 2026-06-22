@@ -1,6 +1,7 @@
 import logging
 import time
 from typing import List, Optional, Dict, Any
+from urllib.parse import urlparse
 
 from office365.runtime.auth.client_credential import ClientCredential
 from office365.sharepoint.client_context import ClientContext
@@ -202,7 +203,8 @@ class SharePointClient:
             logger.debug(f"Oprettet item for UUID {kitos_uuid}")
             return "created"
         except Exception as e:
-            logger.error(f"Fejl ved upsert af {kitos_uuid}: {e}")
+            url_debug = clean_data.get("GDPRAnmeldelseURL", {})
+            logger.error(f"Fejl ved upsert af {kitos_uuid} (GDPRAnmeldelseURL={url_debug}): {e}")
             raise
 
     def delete_sync_item(self, kitos_uuid: str) -> None:
@@ -231,10 +233,17 @@ def _clean_for_sharepoint(data: Dict[str, Any]) -> Dict[str, Any]:
         if value is None:
             continue
         if key in url_fields:
-            if isinstance(value, str) and value.startswith(("http://", "https://")):
-                result[key] = {"__metadata": {"type": "SP.FieldUrlValue"},
-                               "Url": value, "Description": value}
-            # Ugyldig eller tom URL — udelad feltet
+            if isinstance(value, str):
+                url = value.strip().replace(" ", "%20")[:255]
+                try:
+                    parsed = urlparse(url)
+                    if parsed.scheme in ("http", "https") and parsed.netloc:
+                        result[key] = {"__metadata": {"type": "SP.FieldUrlValue"},
+                                       "Url": url, "Description": url}
+                    else:
+                        logger.warning(f"URL-felt '{key}' mangler scheme/host — udelades: '{value[:100]}'")
+                except Exception:
+                    logger.warning(f"URL-felt '{key}' kunne ikke parses — udelades: '{value[:100]}'")
         else:
             result[key] = value
     return result
